@@ -19,19 +19,37 @@ router.post("/chat", async(req,res)=>{
             response=faq.answer;
         }
         else{
-            response= "I could not find an answer in the knowledge base";
+            response= "I am not sure about that, please contact support.";
+        }
+
+        // Escalation Detection
+        const escalationPhrases = [
+            "i'm not sure",
+            "cannot find information",
+            "please contact support"
+        ];
+
+        let needsHumanSupport = false;
+
+        for(let phrase of escalationPhrases){
+            if(response.toLowerCase().includes(phrase)){
+                needsHumanSupport = true;
+                break;
+            }
         }
 
         //save chat history
         const chat = new Chat({
             userMessage: message,
-            botResponse: response
+            botResponse: response,
+            needsHumanSupport
         });
 
         await chat.save();
 
         res.json({
-            reply: response
+            reply: response,
+            needsHumanSupport
         });
 
     } catch(error){
