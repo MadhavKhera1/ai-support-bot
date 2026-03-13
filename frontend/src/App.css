@@ -1,189 +1,374 @@
-body {
-  margin: 0;
-  font-family: "Inter", "Segoe UI", sans-serif;
-  background: #0f172a;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
+/* ================= GLOBAL ================= */
+
+*{
+  box-sizing:border-box;
 }
 
-/* Main container */
-.container {
-  width: 100%;
-  max-width: 650px;
-  height: 85vh;
-  display: flex;
-  flex-direction: column;
+body{
+  margin:0;
+  font-family:"Inter","Segoe UI",sans-serif;
+  background:#0f172a;
+  height:100vh;
+  overflow:hidden;
 }
 
-/* Title */
-.title {
-  text-align: center;
-  color: white;
-  margin-bottom: 12px;
+/* ================= APP LAYOUT ================= */
+
+.app-layout{
+  display:flex;
+  width:100%;
+  height:100vh;
 }
 
-/* Chat box */
-.chat-box {
-  flex: 1;
-  background: #1e293b;
-  border-radius: 12px;
-  padding: 15px;
-  overflow-y: auto;
-  box-shadow: 0px 4px 25px rgba(0,0,0,0.4);
+/* ================= SIDEBAR ================= */
+
+.sidebar-wrapper{
+  width:260px;
+  flex-shrink:0;
 }
 
-/* Message bubbles */
-.message {
-  padding: 10px 14px;
-  border-radius: 14px;
-  margin: 8px 0;
-  max-width: 75%;
-  line-height: 1.5;
-  font-size: 14px;
+.sidebar{
+  width:100%;
+  height:100%;
+  background:#020617;
+  color:white;
+  padding:20px;
+  overflow-y:auto;
 }
 
-/* User bubble */
-.user {
-  background: #2563eb;
-  color: white;
-  margin-left: auto;
+/* ================= MAIN CHAT CONTAINER ================= */
+
+.container{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+  padding:20px;
 }
 
-/* Bot bubble */
-.bot {
-  background: #334155;
-  color: white;
+/* ================= CHAT AREA ================= */
+
+.chat-area{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  width:100%;
+  max-width:900px;
+  margin:0 auto;
 }
 
-/* Input area */
-.input-area {
-  display: flex;
-  margin-top: 10px;
-  gap: 10px;
+/* ================= TITLE ================= */
+
+.title{
+  text-align:center;
+  color:white;
+  margin-bottom:10px;
+  font-size:clamp(20px,2vw,28px);
+  font-weight:600;
 }
 
-.input-area input {
-  flex: 1;
-  padding: 12px;
-  border-radius: 8px;
-  border: none;
-  outline: none;
+/* ================= NEW CHAT BUTTON ================= */
+
+.new-chat-btn{
+  margin-bottom:10px;
+  padding:10px 14px;
+  background:#2563eb;
+  color:white;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  align-self:center;
 }
 
-.input-area button {
-  background: #2563eb;
-  color: white;
-  border: none;
-  padding: 12px 18px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
+.new-chat-btn:hover{
+  background:#1d4ed8;
 }
 
-.input-area button:hover {
-  background: #1d4ed8;
+/* ================= CHAT BOX ================= */
+
+.chat-box{
+  flex:1;
+  width:100%;
+  margin:0;
+  max-width:none;
+  background:#1e293b;
+  border-radius:12px;
+  padding:20px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
 }
 
-/* Mobile responsive */
-@media (max-width: 600px) {
+/* ================= WELCOME SCREEN ================= */
 
-  body {
-    padding: 10px;
+.welcome-layout{
+  display:flex;
+  width:100%;
+  gap:40px;
+  align-items:stretch;
+}
+
+/* left column */
+
+.welcome-left{
+  flex:1;
+}
+
+.welcome-left h3{
+  color:white;
+  margin-bottom:6px;
+}
+
+.welcome-left p{
+  color:#94a3b8;
+  margin-bottom:16px;
+}
+
+/* suggestion buttons */
+
+.suggestions{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.suggestions button{
+  background:#1e293b;
+  border:1px solid #334155;
+  color:white;
+  padding:12px;
+  border-radius:8px;
+  cursor:pointer;
+  transition:0.2s;
+}
+
+.suggestions button:hover{
+  background:#334155;
+}
+
+/* right column */
+
+.welcome-right{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:20px;
+  color:#94a3b8;
+}
+
+.feature{
+  background:#1e293b;
+  padding:16px;
+  border-radius:10px;
+}
+
+.feature p{
+  margin-top:5px;
+  font-size:14px;
+}
+
+/* ================= MESSAGE BUBBLES ================= */
+
+.message{
+  padding:10px 14px;
+  border-radius:14px;
+  margin:8px 0;
+  max-width:70%;
+  line-height:1.5;
+  font-size:14px;
+}
+
+.user{
+  background:#2563eb;
+  color:white;
+  margin-left:auto;
+}
+
+.bot{
+  background:#334155;
+  color:white;
+}
+
+/* ================= INPUT AREA ================= */
+
+.input-area{
+  display:flex;
+  gap:10px;
+  margin-top:10px;
+}
+
+.input-area input{
+  flex:1;
+  padding:12px;
+  border-radius:8px;
+  border:none;
+  outline:none;
+}
+
+.input-area button{
+  background:#2563eb;
+  color:white;
+  border:none;
+  padding:12px 18px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+.input-area button:hover{
+  background:#1d4ed8;
+}
+
+/* ================= SIDEBAR ITEMS ================= */
+
+.chat-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  background:#1e293b;
+  padding:10px;
+  border-radius:8px;
+  margin-bottom:6px;
+  cursor:pointer;
+}
+
+.chat-item:hover{
+  background:#334155;
+}
+
+.chat-title{
+  flex:1;
+  font-size:13px;
+}
+
+/* ================= DELETE BUTTON ================= */
+
+.delete-btn{
+  background:transparent;
+  border:none;
+  color:#ff4d4f;
+  cursor:pointer;
+  opacity:0;
+}
+
+.chat-item:hover .delete-btn{
+  opacity:1;
+}
+
+/* ================= HAMBURGER ================= */
+
+.hamburger{
+  display:none;
+  position:fixed;
+  top:16px;
+  left:16px;
+  background:#1e293b;
+  border:none;
+  color:white;
+  font-size:18px;
+  padding:8px;
+  border-radius:6px;
+  z-index:1001;
+}
+
+/* ================= TABLET ================= */
+
+@media(max-width:1024px){
+
+  .sidebar-wrapper{
+    width:220px;
   }
 
-  .container {
-    height: 95vh;
+  .chat-area{
+    max-width:700px;
   }
 
-  .message {
-    max-width: 90%;
+  .welcome-layout{
+    gap:25px;
   }
-}
-.app-layout {
-  display: flex;
-  height: 100vh;
-}
 
-.sidebar {
-  width: 250px;
-  background: #020617;
-  color: white;
-  padding: 20px;
-  overflow-y: auto;
-}
-
-.chat-item {
-  background: #1e293b;
-  padding: 8px;
-  border-radius: 6px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.chat-item:hover {
-  background: #334155;
-}
-
-.new-chat-btn {
-  margin-bottom: 10px;
-  padding: 8px 12px;
-  background: #2563eb;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.new-chat-btn:hover {
-  background: #1d4ed8;
-}
-
-.chat-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px;
-  margin-bottom: 6px;
-  border-radius: 8px;
-  background: #1e293b;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.chat-item:hover {
-  background: #334155;
-}
-
-.chat-title {
-  flex: 1;
-}
-
-/* desktop: hide delete icon */
-.delete-btn {
-  background: transparent;
-  border: none;
-  color: #ff4d4f;
-  cursor: pointer;
-  font-size: 14px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-/* show icon when hovering (desktop) */
-.chat-item:hover .delete-btn {
-  opacity: 1;
-}
-
-/* mobile devices: always show delete icon */
-@media (max-width: 768px) {
-  .delete-btn {
-    opacity: 1;
+  .message{
+    max-width:80%;
   }
+
+  .chat-box{
+    max-width:none;
+  }
+
 }
 
-.delete-btn:hover {
-  color: #ff0000;
+/* ================= MOBILE ================= */
+
+@media(max-width:768px){
+
+  .hamburger{
+    display:block;
+  }
+
+  .sidebar-wrapper{
+    position:fixed;
+    left:-260px;
+    top:0;
+    height:100vh;
+    width:260px;
+    transition:left .3s ease;
+    z-index:1000;
+  }
+
+  .sidebar{
+    padding-top:72px; /* leave room for fixed hamburger button */
+  }
+
+  .sidebar-wrapper.open{
+    left:0;
+  }
+
+  .container{
+    padding:16px;
+  }
+
+  .chat-area{
+    max-width:none;
+  }
+
+  .welcome-layout{
+    flex-direction:column;
+    gap:20px;
+  }
+
+  .welcome-right{
+    display:none;
+  }
+
+  .message{
+    max-width:90%;
+    font-size:13px;
+  }
+
+}
+
+/* ================= SMALL PHONES ================= */
+
+@media(max-width:480px){
+
+  .title{
+    font-size:18px;
+  }
+
+  .message{
+    font-size:12px;
+  }
+
+}
+
+/* ================= LAPTOPS ================= */
+
+
+@media(min-width:1400px){
+
+  .chat-box{
+    max-width:1000px;
+  }
+
 }

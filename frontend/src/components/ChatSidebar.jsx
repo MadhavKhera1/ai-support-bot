@@ -1,33 +1,39 @@
 import axios from "axios";
 import { FaTrash } from "react-icons/fa";
 
-function ChatSidebar({ conversations, loadConversation, setConversations }) {
+function ChatSidebar({ conversations, loadConversation, setConversations,conversationId, setConversationId,setChat }) {
 
   const deleteConversation = async (e, id) => {
 
-    e.stopPropagation();
+  e.stopPropagation();
 
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this conversation?"
+  const confirmDelete = window.confirm(
+    "Are you sure you want to delete this conversation?"
+  );
+
+  if (!confirmDelete) return;
+
+  try {
+
+    await axios.delete(`http://localhost:5000/api/conversation/${id}`);
+
+    setConversations(prev =>
+      prev.filter(conv => conv._id !== id)
     );
 
-    if (!confirmDelete) return;
-
-    try {
-
-      await axios.delete(`http://localhost:5000/api/conversation/${id}`);
-
-      setConversations(prev =>
-        prev.filter(conv => conv._id !== id)
-      );
-
-    } catch (error) {
-
-      console.error("Failed to delete conversation", error);
-
+    // 👇 IMPORTANT FIX
+    if (conversationId === id) {
+      setConversationId(null);
+      setChat([]);
     }
 
-  };
+  } catch (error) {
+
+    console.error("Failed to delete conversation", error);
+
+  }
+
+};
 
   return (
 

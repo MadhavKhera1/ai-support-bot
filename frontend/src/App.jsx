@@ -2,6 +2,7 @@ import "./App.css";
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ChatSidebar from "./components/ChatSidebar";
+import { FaBars } from "react-icons/fa";
 
 function App() {
 
@@ -10,10 +11,10 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const chatEndRef = useRef(null);
 
-  // fetch conversations for sidebar
   const fetchConversations = async () => {
     try {
       const res = await axios.get("http://localhost:5000/api/conversations");
@@ -23,12 +24,10 @@ function App() {
     }
   };
 
-  // load conversations when app starts
   useEffect(() => {
     fetchConversations();
   }, []);
 
-  // auto scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat]);
@@ -38,147 +37,200 @@ function App() {
     setChat([]);
   };
 
-  const sendMessage = async () => {
+  const sendMessage = async (customMessage) => {
 
-    if (!message.trim()) return;
+    const textToSend = customMessage || message;
 
-    const userText = message;
+    if (!textToSend.trim()) return;
 
     setMessage("");
 
-    // show user message immediately
-    setChat(prev => [
-      ...prev,
-      { sender: "user", text: userText }
-    ]);
+    setChat(prev => [...prev, { sender: "user", text: textToSend }]);
 
     setLoading(true);
 
     try {
 
       const res = await axios.post("http://localhost:5000/api/chat", {
-        message: userText,
-        conversationId: conversationId
+        message: textToSend,
+        conversationId
       });
 
       const botReply = res.data.reply;
 
-      // if first message → create conversation
       if (!conversationId) {
 
         const newConversationId = res.data.conversationId;
 
         setConversationId(newConversationId);
 
-        // add new conversation instantly to sidebar
         setConversations(prev => [
-          {
-            _id: newConversationId,
-            title: userText.slice(0, 40)
-          },
+          { _id: newConversationId, title: textToSend.slice(0, 40) },
           ...prev
         ]);
       }
 
-      // add bot response
-      setChat(prev => [
-        ...prev,
-        { sender: "bot", text: botReply }
-      ]);
+      setChat(prev => [...prev, { sender: "bot", text: botReply }]);
 
     } catch (error) {
 
       console.error("API Error:", error);
 
-      setChat(prev => [
-        ...prev,
-        { sender: "bot", text: "Something went wrong. Please try again." }
-      ]);
+      setChat(prev => [...prev, {
+        sender: "bot",
+        text: "Something went wrong. Please try again."
+      }]);
 
     }
 
     setLoading(false);
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") {
-      sendMessage();
-    }
-  };
-
   const loadConversation = async (id) => {
 
-  try {
+    try {
 
-    const res = await axios.get(
-      `http://localhost:5000/api/messages/${id}`
-    );
+      const res = await axios.get(
+        `http://localhost:5000/api/messages/${id}`
+      );
 
-    const messages = res.data.map(msg => ({
-      sender: msg.role,
-      text: msg.content
-    }));
+      const messages = res.data.map(msg => ({
+        sender: msg.role,
+        text: msg.content
+      }));
 
-    setConversationId(id);
-    setChat(messages);
+      setConversationId(id);
+      setChat(messages);
+      setSidebarOpen(false);
 
-  } catch (error) {
+    } catch (error) {
 
-    console.error("Failed to load conversation", error);
+      console.error("Failed to load conversation", error);
 
-  }
+    }
 
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter") sendMessage();
   };
 
   return (
 
     <div className="app-layout">
 
-      <ChatSidebar
-        conversations={conversations}
-        loadConversation={loadConversation}
-        setConversations={setConversations}
-      />
+      <button
+        className="hamburger"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+      >
+        <FaBars />
+      </button>
+
+      <div className={`sidebar-wrapper ${sidebarOpen ? "open" : ""}`}>
+        <ChatSidebar
+          conversations={conversations}
+          loadConversation={loadConversation}
+          setConversations={setConversations}
+          conversationId={conversationId}
+          setConversationId={setConversationId}
+          setChat={setChat}
+        />
+      </div>
 
       <div className="container">
+        <div className="chat-area">
 
-        <h2 className="title">AI Support Bot</h2>
+          <h2 className="title">AI Support Bot</h2>
 
-        <button className="new-chat-btn" onClick={startNewConversation}>
-          + New Chat
+          <button className="new-chat-btn" onClick={startNewConversation}>
+            + New Chat
+          </button>
+
+          <div className="chat-box">
+
+            {chat.length === 0 && (
+  <div className="welcome-layout">
+
+    <div className="welcome-left">
+
+      <h3>Start a conversation 👋</h3>
+      <p>Try asking one of these questions:</p>
+
+      <div className="suggestions">
+
+        <button onClick={() => sendMessage("What is Machine Learning?")}>
+          What is Machine Learning?
         </button>
 
-        <div className="chat-box">
+        <button onClick={() => sendMessage("Explain Deep Learning simply")}>
+          Explain Deep Learning simply
+        </button>
 
-          {chat.map((msg, index) => (
-            <div
-              key={index}
-              className={`message ${msg.sender === "user" ? "user" : "bot"}`}
-            >
-              {msg.text}
-            </div>
-          ))}
+        <button onClick={() => sendMessage("Examples of AI applications")}>
+          Examples of AI applications
+        </button>
 
-          {loading && (
-            <div className="message bot">Bot is typing...</div>
-          )}
+        <button onClick={() => sendMessage("How to become a Data Analyst?")}>
+          How to become a Data Analyst?
+        </button>
 
-          <div ref={chatEndRef}></div>
+      </div>
 
-        </div>
+    </div>
 
-        <div className="input-area">
+    <div className="welcome-right">
 
-          <input
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyPress}
-            placeholder="Ask a question..."
-          />
+      <h3>AI Support Bot</h3>
 
-          <button onClick={sendMessage}>
-            Send
-          </button>
+      <div className="feature">
+        ⚡ Instant Answers  
+        <p>Ask technical questions and get quick explanations.</p>
+      </div>
+
+      <div className="feature">
+        📚 Learning Assistant  
+        <p>Understand AI, machine learning, and programming concepts.</p>
+      </div>
+
+      <div className="feature">
+        💬 Smart Conversations  
+        <p>The bot remembers context during your chat.</p>
+      </div>
+
+    </div>
+
+  </div>
+)}
+
+            {chat.map((msg, index) => (
+              <div
+                key={index}
+                className={`message ${msg.sender === "user" ? "user" : "bot"}`}
+              >
+                {msg.text}
+              </div>
+            ))}
+
+            {loading && (
+              <div className="message bot">Bot is typing...</div>
+            )}
+
+            <div ref={chatEndRef}></div>
+
+          </div>
+
+          <div className="input-area">
+
+            <input
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyPress}
+              placeholder="Ask a question..."
+            />
+
+            <button onClick={() => sendMessage()}>Send</button>
+
+          </div>
 
         </div>
 
