@@ -6,22 +6,26 @@ const generateAIResponse = require("../services/gemini.service");
 const Conversation = require("../models/conversation.model");
 const Message = require("../models/message.model");
 const FAQ = require("../models/faq.model");
+const authMiddleware = require("../middleware/auth.middleware");
 
 
 // POST /api/chat
-router.post("/chat", async (req, res) => {
+router.post("/chat",authMiddleware, async (req, res) => {
 
     try {
 
         const { message, conversationId } = req.body;
 
+        if (!message) {
+            return res.status(400).json({ error: "Message is required" });
+        }
         let conversation;
 
-        // create new conversation if none exists
         if (!conversationId) {
 
             conversation = new Conversation({
-                title: message.slice(0, 40)
+                title: message.substring(0, 40),
+                userId: req.user.id   // important for user based chats
             });
 
             await conversation.save();
@@ -29,6 +33,12 @@ router.post("/chat", async (req, res) => {
         } else {
 
             conversation = await Conversation.findById(conversationId);
+
+            if (!conversation) {
+                return res.status(404).json({
+                error: "Conversation not found"
+                });
+            }
 
         }
 
@@ -127,7 +137,7 @@ ${message}
 
 
 // GET all conversations for sidebar
-router.get("/conversations", async (req, res) => {
+router.get("/conversations", authMiddleware,async (req, res) => {
 
     try {
 
@@ -148,7 +158,7 @@ router.get("/conversations", async (req, res) => {
 
 
 // get messages of a specific conversation
-router.get("/messages/:conversationId", async (req, res) => {
+router.get("/messages/:conversationId", authMiddleware, async (req, res) => {
 
   try {
 
@@ -168,7 +178,7 @@ router.get("/messages/:conversationId", async (req, res) => {
 });
 
 // delete a conversation
-router.delete("/conversation/:id", async (req, res) => {
+router.delete("/conversation/:id", authMiddleware, async (req, res) => {
 
   try {
 
