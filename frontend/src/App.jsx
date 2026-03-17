@@ -4,6 +4,8 @@ import axios from "axios";
 import ChatSidebar from "./components/ChatSidebar";
 import { FaBars } from "react-icons/fa";
 
+import Login from "./pages/Login";
+
 function App() {
 
   const [message, setMessage] = useState("");
@@ -12,6 +14,15 @@ function App() {
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    !!localStorage.getItem("token")
+  );
+
+  const token = localStorage.getItem("token");
+
+if (token) {
+  axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+}
 
   const chatEndRef = useRef(null);
 
@@ -115,6 +126,10 @@ function App() {
     if (e.key === "Enter") sendMessage();
   };
 
+  //auth check
+  if (!isLoggedIn) {
+    return <Login setIsLoggedIn={setIsLoggedIn} />;
+  }
   return (
 
     <div className="app-layout">
