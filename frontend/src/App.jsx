@@ -17,12 +17,14 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(
     !!localStorage.getItem("token")
   );
+  const [user, setUser] = useState(null);
 
   const token = localStorage.getItem("token");
 
-if (token) {
-  axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-}
+  // Set axios headers immediately
+  if (token) {
+    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  }
 
   const chatEndRef = useRef(null);
 
@@ -35,13 +37,52 @@ if (token) {
     }
   };
 
-  useEffect(() => {
-    fetchConversations();
-  }, []);
+  
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat]);
+
+  useEffect(() => {
+    if (token && isLoggedIn) {
+      const timer = setTimeout(() => {
+        fetchConversations();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [token, isLoggedIn]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chat]);
+
+  useEffect(() => {
+
+      const fetchUser = async () => {
+
+        try {
+          const res = await axios.get("http://localhost:5000/api/auth/me");
+          setUser(res.data);
+
+        } catch (error) {
+          console.error("Failed to fetch user", error);
+          // If token is invalid, logout user
+          if (error.response?.status === 401) {
+            localStorage.removeItem("token");
+            setIsLoggedIn(false);
+          }
+        }
+
+      };
+
+      if (token) {
+        const timer = setTimeout(() => {
+          fetchUser();
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+
+  }, [token]);
 
   const startNewConversation = () => {
     setConversationId(null);
@@ -149,6 +190,7 @@ if (token) {
           conversationId={conversationId}
           setConversationId={setConversationId}
           setChat={setChat}
+          user={user}
         />
       </div>
 

@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/user.model");
 
 const jwt = require("jsonwebtoken");
+const authMiddleware = require("../middleware/auth.middleware");
 
 //Sign Up API
 router.post("/signup", async(req,res)=>{
@@ -88,6 +89,19 @@ router.post("/login", async(req,res)=>{
         });
     }
     
+});
+
+//route to get user details
+router.get("/me", authMiddleware, async(req,res)=>{
+    try{
+        const user = await User.findById(req.user.id).select("-password");
+        res.json(user);
+    } catch(error){
+        console.error(error);
+        res.status(500).json({
+            error: "Server Error"
+        });
+    }
 });
 
 module.exports = router; 

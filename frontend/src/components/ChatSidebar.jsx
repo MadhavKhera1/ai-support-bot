@@ -1,7 +1,7 @@
 import axios from "axios";
 import { FaTrash } from "react-icons/fa";
 
-function ChatSidebar({ conversations, loadConversation, setConversations,conversationId, setConversationId,setChat }) {
+function ChatSidebar({ conversations, loadConversation, setConversations,conversationId, setConversationId,setChat, user }) {
 
   const deleteConversation = async (e, id) => {
 
@@ -37,7 +37,25 @@ function ChatSidebar({ conversations, loadConversation, setConversations,convers
 
   return (
     <div className="sidebar">
+    
     <div className="sidebar-top">
+      <div className="user-profile">
+
+            <div className="avatar">
+              {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+            </div>
+
+            <div className="user-info">
+              <div className="user-name">
+                {user?.name || "Loading..."}
+              </div>
+
+              <div className="user-email">
+                {user?.email || ""}
+              </div>
+            </div>
+
+      </div>
 
       <h3>Previous Chats</h3>
 
