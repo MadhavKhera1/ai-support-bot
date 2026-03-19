@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import jsPDF from 'jspdf';
 
 import Login from "./pages/Login";
+import Settings from "./pages/Settings";
 
 function App() {
 
@@ -24,6 +25,7 @@ function App() {
   const [copiedMessage, setCopiedMessage] = useState(null);
   const [copiedCode, setCopiedCode] = useState(null);
   const [showExportOptions, setShowExportOptions] = useState(false);
+  const [route, setRoute] = useState(() => window.location.pathname || "/");
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -39,16 +41,34 @@ function App() {
 
   const token = localStorage.getItem("token");
 
-  // Set axios headers immediately
-  if (token) {
-    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-  }
-
   const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    const onPop = () => setRoute(window.location.pathname || "/");
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  const navigate = (path) => {
+    if (window.location.pathname === path) return;
+    window.history.pushState({}, "", path);
+    setRoute(path);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setIsLoggedIn(false);
+    setUser(null);
+    setConversations([]);
+    setConversationId(null);
+    setChat([]);
+    setSidebarOpen(false);
+    navigate("/");
+  };
 
   const fetchConversations = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/conversations");
+      const res = await axios.get("/api/conversations");
       setConversations(res.data);
     } catch (error) {
       console.error("Failed to fetch conversations", error);
@@ -62,12 +82,8 @@ function App() {
   }, [chat]);
 
   useEffect(() => {
-    if (token && isLoggedIn) {
-      const timer = setTimeout(() => {
-        fetchConversations();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
+    if (!isLoggedIn || !token) return;
+    Promise.resolve().then(fetchConversations);
   }, [token, isLoggedIn]);
 
   useEffect(() => {
@@ -79,7 +95,7 @@ function App() {
       const fetchUser = async () => {
 
         try {
-          const res = await axios.get("http://localhost:5000/api/auth/me");
+          const res = await axios.get("/api/auth/me");
           setUser(res.data);
 
         } catch (error) {
@@ -93,14 +109,10 @@ function App() {
 
       };
 
-      if (token) {
-        const timer = setTimeout(() => {
-          fetchUser();
-        }, 100);
-        return () => clearTimeout(timer);
-      }
+      if (!isLoggedIn || !token) return;
+      Promise.resolve().then(fetchUser);
 
-  }, [token]);
+  }, [token, isLoggedIn]);
 
   const startNewConversation = () => {
     setConversationId(null);
@@ -121,7 +133,7 @@ function App() {
 
     try {
 
-      const res = await axios.post("http://localhost:5000/api/chat", {
+      const res = await axios.post("/api/chat", {
         message: textToSend,
         conversationId
       });
@@ -161,7 +173,7 @@ function App() {
     try {
 
       const res = await axios.get(
-        `http://localhost:5000/api/messages/${id}`
+        `/api/messages/${id}`
       );
 
       const messages = res.data.map(msg => ({
@@ -208,7 +220,7 @@ function App() {
   const exportAsText = () => {
     try {
       let content = '';
-      chat.forEach((msg, index) => {
+      chat.forEach((msg) => {
         const sender = msg.sender === 'user' ? 'You' : 'AI Support Bot';
         content += `${sender}:\n${msg.text}\n\n`;
       });
@@ -237,7 +249,7 @@ function App() {
       
       doc.setFontSize(12);
       
-      chat.forEach((msg, index) => {
+      chat.forEach((msg) => {
         const sender = msg.sender === 'user' ? 'You:' : 'AI Support Bot:';
         const lines = doc.splitTextToSize(msg.text, pageWidth);
         
@@ -279,7 +291,7 @@ function App() {
     setLoading(true);
     
     try {
-      const res = await axios.post("http://localhost:5000/api/chat", {
+      const res = await axios.post("/api/chat", {
         message: lastUserMessage.text,
         conversationId
       });
@@ -302,9 +314,7 @@ function App() {
     return <Login setIsLoggedIn={setIsLoggedIn} />;
   }
   return (
-
     <div className="app-layout">
-
       <button
         className="hamburger"
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -321,229 +331,232 @@ function App() {
           setConversationId={setConversationId}
           setChat={setChat}
           user={user}
+          onOpenSettings={() => {
+            navigate("/settings");
+            setSidebarOpen(false);
+          }}
+          onLogout={handleLogout}
         />
       </div>
 
-
       <div className="container">
-        <div className="chat-area">
-
-          <div className="top-bar">
-            <div className="top-bar-spacer"></div>
-            <h2 className="title">AI Support Bot</h2>
-            <div className="top-bar-actions">
-              <div className="export-dropdown">
-                <button 
-                  className="export-btn" 
-                  onClick={() => setShowExportOptions(!showExportOptions)}
-                  title="Export Chat"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                </button>
-                {showExportOptions && (
-                  <div className="export-options">
-                    <button className="export-option" onClick={exportAsText}>
-                      📄 Export as Text
-                    </button>
-                    <button className="export-option" onClick={exportAsPDF}>
-                      📄 Export as PDF
-                    </button>
-                  </div>
-                )}
-              </div>
-              <button className="new-chat-btn" onClick={startNewConversation}>
-                + New Chat
-              </button>
-            </div>
-          </div>
-
-          <div className="chat-box">
-
-            {chat.length === 0 && (
-  <div className="welcome-layout">
-
-    <div className="welcome-left">
-
-      <h3>Start a conversation 👋</h3>
-      <p>Try asking one of these questions:</p>
-
-      <div className="suggestions">
-
-        <button onClick={() => sendMessage("What is Machine Learning?")}>
-          What is Machine Learning?
-        </button>
-
-        <button onClick={() => sendMessage("Explain Deep Learning simply")}>
-          Explain Deep Learning simply
-        </button>
-
-        <button onClick={() => sendMessage("Examples of AI applications")}>
-          Examples of AI applications
-        </button>
-
-        <button onClick={() => sendMessage("How to become a Data Analyst?")}>
-          How to become a Data Analyst?
-        </button>
-
-      </div>
-
-    </div>
-
-    <div className="welcome-right">
-
-      <h3>AI Support Bot</h3>
-
-      <div className="feature">
-        ⚡ Instant Answers  
-        <p>Ask technical questions and get quick explanations.</p>
-      </div>
-
-      <div className="feature">
-        📚 Learning Assistant  
-        <p>Understand AI, machine learning, and programming concepts.</p>
-      </div>
-
-      <div className="feature">
-        💬 Smart Conversations  
-        <p>The bot remembers context during your chat.</p>
-      </div>
-
-    </div>
-
-  </div>
-)}
-
-            {chat.map((msg, index) => (
-              <div
-                key={index}
-                className={`message ${msg.sender === "user" ? "user" : "bot"}`}
-              >
-                <div className="message-content">
-                  {msg.sender === "user" ? (
-                    msg.text
-                  ) : (
-                    <ReactMarkdown 
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        code({node, inline, className, children, ...props}) {
-                          const match = /language-(\w+)/.exec(className || '')
-                          return !inline && match ? (
-                            <div className="code-block-wrapper">
-                              <pre className="code-block">
-                                <code className={className} {...props}>
-                                  {children}
-                                </code>
-                              </pre>
-                              <button 
-                                className="code-copy-btn"
-                                onClick={() => copyCode(String(children).replace(/\n$/, ''))}
-                                title="Copy code"
-                              >
-                                {copiedCode === String(children).replace(/\n$/, '') ? (
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="20 6 9 17 4 12"/>
-                                  </svg>
-                                ) : (
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                                  </svg>
-                                )}
-                              </button>
-                            </div>
-                          ) : (
-                            <code className="inline-code" {...props}>
-                              {children}
-                            </code>
-                          )
-                        },
-                        ul({children}) {
-                          return <ul className="markdown-list">{children}</ul>
-                        },
-                        ol({children}) {
-                          return <ol className="markdown-list">{children}</ol>
-                        },
-                        h1({children}) {
-                          return <h1 className="markdown-h1">{children}</h1>
-                        },
-                        h2({children}) {
-                          return <h2 className="markdown-h2">{children}</h2>
-                        },
-                        h3({children}) {
-                          return <h3 className="markdown-h3">{children}</h3>
-                        },
-                        strong({children}) {
-                          return <strong className="markdown-bold">{children}</strong>
-                        }
-                      }}
-                    >
-                      {msg.text}
-                    </ReactMarkdown>
-                  )}
-                </div>
-                {msg.sender === "bot" && (
-                  <div className="message-actions">
-                    <button 
-                      className="copy-btn"
-                      onClick={() => copyMessage(msg.text, index)}
-                      title="Copy message"
-                    >
-                      {copiedMessage === index ? (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <polyline points="20 6 9 17 4 12"/>
-                        </svg>
-                      ) : (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                        </svg>
-                      )}
-                    </button>
-                  </div>
-                )}
-                {msg.sender === "bot" && index === chat.length - 1 && (
-                  <div className="regenerate-container">
-                    <button 
-                      className="regenerate-btn"
-                      onClick={regenerateResponse}
-                      disabled={loading}
-                    >
-                      ↻ Regenerate
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {loading && (
-              <div className="message bot">Bot is typing...</div>
-            )}
-
-            <div ref={chatEndRef}></div>
-
-          </div>
-
-          <div className="input-area">
-
-            <input
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder="Ask a question..."
+        {route === "/settings" ? (
+          <div className="settings-scroll">
+            <Settings
+              onBack={() => navigate("/")}
+              onLogout={handleLogout}
+              onUserUpdated={(updatedUser) => setUser(updatedUser)}
+              onChatsCleared={() => {
+                setConversations([]);
+                setConversationId(null);
+                setChat([]);
+              }}
             />
-
-            <button onClick={() => sendMessage()}>Send</button>
-
           </div>
-
+        ) : (
+        <>
+        <div className="top-bar">
+          <div className="top-bar-spacer"></div>
+          <h2 className="title">AI Support Bot</h2>
+          <div className="top-bar-actions">
+            <div className="export-dropdown">
+              <button 
+                className="export-btn" 
+                onClick={() => setShowExportOptions(!showExportOptions)}
+                title="Export Chat"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </button>
+              {showExportOptions && (
+                <div className="export-options">
+                  <button className="export-option" onClick={exportAsText}>
+                    📄 Export as Text
+                  </button>
+                  <button className="export-option" onClick={exportAsPDF}>
+                    📄 Export as PDF
+                  </button>
+                </div>
+              )}
+            </div>
+            <button className="new-chat-btn" onClick={startNewConversation}>
+              + New Chat
+            </button>
+          </div>
         </div>
 
-      </div>
+        <div className="chat-box">
+          {chat.length === 0 && (
+            <div className="welcome-layout">
+              <div className="welcome-left">
+                <h3>Start a conversation</h3>
+                <p>Try asking one of these questions:</p>
 
+                <div className="suggestions">
+                  <button onClick={() => sendMessage("What is Machine Learning?")}>
+                    What is Machine Learning?
+                  </button>
+                  <button onClick={() => sendMessage("Explain Deep Learning simply")}>
+                    Explain Deep Learning simply
+                  </button>
+                  <button onClick={() => sendMessage("Examples of AI applications")}>
+                    Examples of AI applications
+                  </button>
+                  <button onClick={() => sendMessage("How to become a Data Analyst?")}>
+                    How to become a Data Analyst?
+                  </button>
+                </div>
+              </div>
+
+              <div className="welcome-right">
+                <h3>AI Support Bot</h3>
+
+                <div className="feature">
+                  ⚡ Instant Answers
+                  <p>Ask technical questions and get quick explanations.</p>
+                </div>
+
+                <div className="feature">
+                  📚 Learning Assistant
+                  <p>Understand AI, machine learning, and programming concepts.</p>
+                </div>
+
+                <div className="feature">
+                  💬 Smart Conversations
+                  <p>The bot remembers context during your chat.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {chat.map((msg, index) => (
+            <div
+              key={index}
+              className={`message ${msg.sender === "user" ? "user" : "bot"}`}
+            >
+              <div className="message-content">
+                {msg.sender === "user" ? (
+                  msg.text
+                ) : (
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code({ inline, className, children, ...props }) {
+                        const match = /language-(\w+)/.exec(className || '')
+                        return !inline && match ? (
+                          <div className="code-block-wrapper">
+                            <pre className="code-block">
+                              <code className={className} {...props}>
+                                {children}
+                              </code>
+                            </pre>
+                            <button 
+                              className="code-copy-btn"
+                              onClick={() => copyCode(String(children).replace(/\n$/, ''))}
+                              title="Copy code"
+                            >
+                              {copiedCode === String(children).replace(/\n$/, '') ? (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                              ) : (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          <code className="inline-code" {...props}>
+                            {children}
+                          </code>
+                        )
+                      },
+                      ul({children}) {
+                        return <ul className="markdown-list">{children}</ul>
+                      },
+                      ol({children}) {
+                        return <ol className="markdown-list">{children}</ol>
+                      },
+                      h1({children}) {
+                        return <h1 className="markdown-h1">{children}</h1>
+                      },
+                      h2({children}) {
+                        return <h2 className="markdown-h2">{children}</h2>
+                      },
+                      h3({children}) {
+                        return <h3 className="markdown-h3">{children}</h3>
+                      },
+                      strong({children}) {
+                        return <strong className="markdown-bold">{children}</strong>
+                      }
+                    }}
+                  >
+                    {msg.text}
+                  </ReactMarkdown>
+                )}
+              </div>
+              {msg.sender === "bot" && (
+                <div className="message-actions">
+                  <button 
+                    className="copy-btn"
+                    onClick={() => copyMessage(msg.text, index)}
+                    title="Copy message"
+                  >
+                    {copiedMessage === index ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              )}
+              {msg.sender === "bot" && index === chat.length - 1 && (
+                <div className="regenerate-container">
+                  <button 
+                    className="regenerate-btn"
+                    onClick={regenerateResponse}
+                    disabled={loading}
+                  >
+                    ↻ Regenerate
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {loading && (
+            <div className="message bot">Bot is typing...</div>
+          )}
+
+          <div ref={chatEndRef}></div>
+        </div>
+
+        <div className="input-area">
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Ask a question"
+            className="chat-input"
+            rows={1}
+            onKeyPress={handleKeyPress}
+          />
+          <button onClick={sendMessage} className="send-btn" disabled={loading}>
+            {loading ? "Sending..." : "Send"}
+          </button>
+        </div>
+        </>
+        )}
+      </div>
     </div>
   );
 }

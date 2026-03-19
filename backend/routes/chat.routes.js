@@ -243,4 +243,47 @@ router.delete("/conversation/:id", authMiddleware, async (req, res) => {
 
 });
 
+// clear all conversations for a user
+router.delete("/conversations/clear-all", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Find all conversations for this user
+    const conversations = await Conversation.find({ userId });
+    
+    if (conversations.length === 0) {
+      return res.json({
+        message: "No conversations to clear",
+        deletedConversations: 0,
+        deletedMessages: 0
+      });
+    }
+
+    // Get all conversation IDs
+    const conversationIds = conversations.map(conv => conv._id);
+
+    // Delete all messages in these conversations
+    const messageDeleteResult = await Message.deleteMany({
+      conversationId: { $in: conversationIds }
+    });
+
+    // Delete all conversations
+    const conversationDeleteResult = await Conversation.deleteMany({
+      userId: userId
+    });
+
+    res.json({
+      message: "All conversations cleared successfully",
+      deletedConversations: conversationDeleteResult.deletedCount,
+      deletedMessages: messageDeleteResult.deletedCount
+    });
+
+  } catch (error) {
+    console.error("CLEAR ALL CONVERSATIONS ERROR:", error);
+    res.status(500).json({
+      error: "Failed to clear conversations"
+    });
+  }
+});
+
 module.exports = router;

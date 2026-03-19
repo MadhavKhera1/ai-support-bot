@@ -1,7 +1,16 @@
-import axios from "axios";
 import { FaTrash } from "react-icons/fa";
 
-function ChatSidebar({ conversations, loadConversation, setConversations,conversationId, setConversationId,setChat, user }) {
+function ChatSidebar({
+  conversations,
+  loadConversation,
+  setConversations,
+  conversationId,
+  setConversationId,
+  setChat,
+  user,
+  onOpenSettings,
+  onLogout
+}) {
 
   const deleteConversation = async (e, id) => {
 
@@ -55,6 +64,15 @@ function ChatSidebar({ conversations, loadConversation, setConversations,convers
               </div>
             </div>
 
+            <button
+              className="settings-btn"
+              onClick={onOpenSettings}
+              title="Settings"
+              type="button"
+            >
+              ⚙️
+            </button>
+
       </div>
 
       <h3>Previous Chats</h3>
@@ -88,15 +106,14 @@ function ChatSidebar({ conversations, loadConversation, setConversations,convers
 
     </div>
 
-    <button
-      className="logout-btn"
-      onClick={() => {
-        localStorage.removeItem("token");
-        window.location.reload();
-      }}
-    >
-      Logout
-    </button>
+    <div className="sidebar-bottom">
+      <button
+        className="logout-btn"
+        onClick={onLogout}
+      >
+        Logout
+      </button>
+    </div>
     </div>
 
   );
