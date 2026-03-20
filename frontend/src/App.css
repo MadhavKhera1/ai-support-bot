@@ -77,9 +77,10 @@ body{
 /* Lightweight agent toasts (non-intrusive) */
 .agent-toast{
   position: fixed;
-  top: 72px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 92px;
+  right: 22px;
+  left: auto;
+  transform: none;
   z-index: 2000;
   background: rgba(30, 41, 59, 0.92);
   border: 1px solid rgba(255,255,255,0.08);

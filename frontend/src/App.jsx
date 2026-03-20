@@ -120,46 +120,28 @@ function App() {
   };
 
   const detectIntent = (text) => {
-    const t = text.toLowerCase().trim();
+    const raw = text.toLowerCase().trim();
+    const t = raw.replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ");
 
-    const hasChatWord = /(chat|chats|conversation|conversations|messages)/.test(t);
+    const hasChatWord = /(chat|chats|conversation|conversations|message|messages)/.test(t);
+    const hasDelete = /(delete|remove|clear|erase|wipe|reset|purge|drop)/.test(t);
+    const hasAll = /\b(all|everything|entire|whole|every)\b/.test(t);
 
-    const hasListWord =
-      /(list|show|previous|recent|all previous|all chats|what are my chats)/.test(t);
+    const hasThis = /\b(this|current|active)\b/.test(t);
+    const hasLast = /(last|most recent|latest)/.test(t);
 
-    const hasClearDelete =
-      /(clear|delete|remove|erase|wipe|reset|drop)/.test(t);
+    const hasList = /(list|show|previous|recent|what are my chats|my chats)/.test(t);
 
-    const hasAllWord =
-      /(all|everything|entire|whole|every)/.test(t);
+    const hasRegenerate = /(regenerate|try again|refresh response|redo|re-do|another answer|new answer)/.test(t);
 
-    const hasLastWord =
-      /(last|most recent|latest|previous one|most recent chat)/.test(t);
+    // Most destructive/specific first
+    if (hasRegenerate) return { type: "REGENERATE_LAST_RESPONSE" };
+    if (hasChatWord && hasDelete && hasAll) return { type: "CLEAR_ALL_CHATS" };
+    if (hasChatWord && hasDelete && hasThis) return { type: "DELETE_CURRENT_CHAT" };
+    if (hasChatWord && hasDelete && hasLast) return { type: "DELETE_LAST_CHAT" };
+    if (hasChatWord && hasDelete) return { type: "DELETE_CHAT" };
 
-    const hasThisChat =
-      /(this chat|current chat|active chat|this conversation|current conversation|active conversation)/.test(t);
-
-    const wantsClearAll = hasChatWord && hasClearDelete && hasAllWord;
-    const wantsDeleteLast = hasChatWord && hasClearDelete && hasLastWord;
-    const wantsDeleteThis = hasChatWord && hasClearDelete && hasThisChat;
-
-    // 1) clear/delete all chats (most specific)
-    if (wantsClearAll) return { type: "CLEAR_ALL_CHATS" };
-
-    // 2) delete last / most recent
-    if (wantsDeleteLast) return { type: "DELETE_LAST_CHAT" };
-
-    // 3) delete current/this chat
-    if (wantsDeleteThis) return { type: "DELETE_CURRENT_CHAT" };
-
-    // 4) delete/clear chat without specifying scope
-    //    Example: "delete chat", "clear chat", "remove conversation"
-    if (hasChatWord && hasClearDelete && !hasAllWord && !hasLastWord) {
-      return { type: "DELETE_CHAT" }; // decide current vs last in sendMessage
-    }
-
-    // 5) list/show chats
-    if (hasListWord && hasChatWord && !hasAllWord) return { type: "LIST_CHATS" };
+    if (hasChatWord && hasList) return { type: "LIST_CHATS" };
 
     return { type: "AI_CHAT" };
   };
@@ -184,11 +166,25 @@ function App() {
     if (!textToSend.trim()) return;
 
     setMessage("");
+    const intent = detectIntent(textToSend);
+
+    // Regenerate intent should NOT add the "regenerate" command as a user message.
+    // We want to regenerate the previous answer using the last actual user question.
+    if (intent.type === "REGENERATE_LAST_RESPONSE") {
+      showToast("Detecting intent…", 1200);
+      showToast("Executing action…", 1600);
+      try {
+        await regenerateResponse();
+      } catch (error) {
+        console.error("Regenerate error:", error);
+        appendBot("Something went wrong while regenerating. Please try again.");
+      }
+      return;
+    }
 
     setChat((prev) => [...prev, { sender: "user", text: textToSend }]);
     setLoading(true);
 
-    const intent = detectIntent(textToSend);
     showToast("Detecting intent…", 1200);
     showToast("Executing action…", 1600);
 
@@ -242,7 +238,26 @@ function App() {
         }
       } else if (intent.type === "DELETE_CURRENT_CHAT") {
         if (!conversationId) {
-          appendBot("No active chat to delete. Open a chat first.");
+          // If user says "this chat" but none is active, fall back to deleting most recent.
+          const res = await axios.get("/api/conversations");
+          const convs = res.data || [];
+          if (!convs.length) {
+            appendBot("No chats to delete.");
+          } else {
+            const last = convs[0];
+            const ok = window.confirm(
+              "No active chat found. Delete the last (most recent) chat instead?"
+            );
+            if (!ok) {
+              showToast("Action cancelled", 1400);
+            } else {
+              await axios.delete(`/api/conversation/${last._id}`);
+              await fetchConversations();
+              setConversationId(null);
+              setChat([]);
+              showToast("✅ Chat deleted", 1600);
+            }
+          }
         } else {
           const ok = window.confirm("Are you sure you want to delete this chat?");
           if (!ok) {
@@ -705,7 +720,7 @@ function App() {
             rows={1}
             onKeyPress={handleKeyPress}
           />
-          <button onClick={sendMessage} className="send-btn" disabled={loading}>
+          <button onClick={() => sendMessage()} className="send-btn" disabled={loading}>
             {loading ? "Sending..." : "Send"}
           </button>
         </div>
