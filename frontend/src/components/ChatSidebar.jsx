@@ -1,3 +1,4 @@
+import axios from "axios";
 import { FaTrash } from "react-icons/fa";
 
 function ChatSidebar({
@@ -24,7 +25,7 @@ function ChatSidebar({
 
   try {
 
-    await axios.delete(`http://localhost:5000/api/conversation/${id}`);
+    await axios.delete(`/api/conversation/${id}`);
 
     setConversations(prev =>
       prev.filter(conv => conv._id !== id)

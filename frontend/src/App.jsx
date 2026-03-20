@@ -119,6 +119,64 @@ function App() {
     setChat([]);
   };
 
+  const detectIntent = (text) => {
+    const t = text.toLowerCase().trim();
+
+    const hasChatWord = /(chat|chats|conversation|conversations|messages)/.test(t);
+
+    const hasListWord =
+      /(list|show|previous|recent|all previous|all chats|what are my chats)/.test(t);
+
+    const hasClearDelete =
+      /(clear|delete|remove|erase|wipe|reset|drop)/.test(t);
+
+    const hasAllWord =
+      /(all|everything|entire|whole|every)/.test(t);
+
+    const hasLastWord =
+      /(last|most recent|latest|previous one|most recent chat)/.test(t);
+
+    const hasThisChat =
+      /(this chat|current chat|active chat|this conversation|current conversation|active conversation)/.test(t);
+
+    const wantsClearAll = hasChatWord && hasClearDelete && hasAllWord;
+    const wantsDeleteLast = hasChatWord && hasClearDelete && hasLastWord;
+    const wantsDeleteThis = hasChatWord && hasClearDelete && hasThisChat;
+
+    // 1) clear/delete all chats (most specific)
+    if (wantsClearAll) return { type: "CLEAR_ALL_CHATS" };
+
+    // 2) delete last / most recent
+    if (wantsDeleteLast) return { type: "DELETE_LAST_CHAT" };
+
+    // 3) delete current/this chat
+    if (wantsDeleteThis) return { type: "DELETE_CURRENT_CHAT" };
+
+    // 4) delete/clear chat without specifying scope
+    //    Example: "delete chat", "clear chat", "remove conversation"
+    if (hasChatWord && hasClearDelete && !hasAllWord && !hasLastWord) {
+      return { type: "DELETE_CHAT" }; // decide current vs last in sendMessage
+    }
+
+    // 5) list/show chats
+    if (hasListWord && hasChatWord && !hasAllWord) return { type: "LIST_CHATS" };
+
+    return { type: "AI_CHAT" };
+  };
+
+  const appendBot = (text) => {
+    setChat((prev) => [...prev, { sender: "bot", text }]);
+  };
+
+  const [toastText, setToastText] = useState(null);
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = (text, ms = 1800) => {
+    setToastText(text);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => setToastText(null), ms);
+  };
+
   const sendMessage = async (customMessage) => {
 
     const textToSend = customMessage || message;
@@ -127,42 +185,134 @@ function App() {
 
     setMessage("");
 
-    setChat(prev => [...prev, { sender: "user", text: textToSend }]);
-
+    setChat((prev) => [...prev, { sender: "user", text: textToSend }]);
     setLoading(true);
 
+    const intent = detectIntent(textToSend);
+    showToast("Detecting intent…", 1200);
+    showToast("Executing action…", 1600);
+
     try {
+      if (intent.type === "LIST_CHATS") {
+        const res = await axios.get("/api/conversations");
+        const convs = res.data || [];
 
-      const res = await axios.post("/api/chat", {
-        message: textToSend,
-        conversationId
-      });
+        if (!convs.length) {
+          appendBot("No chats yet.");
+        } else {
+          const lines = convs.map((c) => `- ${c.title || "Untitled chat"}`);
+          appendBot(`Here are your previous chats (most recent first):\n${lines.join("\n")}`);
+        }
+      } else if (intent.type === "CLEAR_ALL_CHATS") {
+        const ok = window.confirm("Are you sure you want to clear ALL chats?");
+        if (!ok) {
+          showToast("Action cancelled", 1400);
+        } else {
+          await axios.delete("/api/conversations/clear-all");
+          setConversations([]);
+          setConversationId(null);
+          setChat([]);
+          showToast("✅ All chats cleared", 1600);
+        }
+      } else if (intent.type === "DELETE_LAST_CHAT") {
+        const res = await axios.get("/api/conversations");
+        const convs = res.data || [];
 
-      const botReply = res.data.reply;
+        if (!convs.length) {
+          appendBot("No chats to delete.");
+        } else {
+          const last = convs[0];
+          const ok = window.confirm(
+            "Are you sure you want to delete the last (most recent) chat?"
+          );
+          if (!ok) {
+            showToast("Action cancelled", 1400);
+          } else {
+            await axios.delete(`/api/conversation/${last._id}`);
+            await fetchConversations();
 
-      if (!conversationId) {
+            if (conversationId === last._id) {
+              setConversationId(null);
+              setChat([]);
+            } else {
+              appendBot("✅ Deleted the last chat.");
+            }
+            showToast("✅ Chat deleted", 1600);
+          }
+        }
+      } else if (intent.type === "DELETE_CURRENT_CHAT") {
+        if (!conversationId) {
+          appendBot("No active chat to delete. Open a chat first.");
+        } else {
+          const ok = window.confirm("Are you sure you want to delete this chat?");
+          if (!ok) {
+            showToast("Action cancelled", 1400);
+          } else {
+            await axios.delete(`/api/conversation/${conversationId}`);
+            await fetchConversations();
+            setConversationId(null);
+            setChat([]);
+            showToast("✅ Chat deleted", 1600);
+          }
+        }
+      } else if (intent.type === "DELETE_CHAT") {
+        // Generic delete without "last" / "this" - delete current if selected, else delete most recent
+        if (conversationId) {
+          const ok = window.confirm("Are you sure you want to delete this chat?");
+          if (!ok) {
+            showToast("Action cancelled", 1400);
+          } else {
+            await axios.delete(`/api/conversation/${conversationId}`);
+            await fetchConversations();
+            setConversationId(null);
+            setChat([]);
+            showToast("✅ Chat deleted", 1600);
+          }
+        } else {
+          // No active chat: delete most recent
+          const res = await axios.get("/api/conversations");
+          const convs = res.data || [];
+          if (!convs.length) {
+            appendBot("No chats to delete.");
+          } else {
+            const last = convs[0];
+            const ok = window.confirm(
+              "Are you sure you want to delete the last (most recent) chat?"
+            );
+            if (!ok) {
+              showToast("Action cancelled", 1400);
+            } else {
+              await axios.delete(`/api/conversation/${last._id}`);
+              await fetchConversations();
+              setConversationId(null);
+              setChat([]);
+              showToast("✅ Chat deleted", 1600);
+            }
+          }
+        }
+      } else {
+        // Normal AI chat
+        const res = await axios.post("/api/chat", {
+          message: textToSend,
+          conversationId,
+        });
 
-        const newConversationId = res.data.conversationId;
+        const botReply = res.data.reply;
 
-        setConversationId(newConversationId);
+        if (!conversationId) {
+          const newConversationId = res.data.conversationId;
+          setConversationId(newConversationId);
+          setConversations((prev) => [
+            { _id: newConversationId, title: textToSend.slice(0, 40) },
+            ...prev,
+          ]);
+        }
 
-        setConversations(prev => [
-          { _id: newConversationId, title: textToSend.slice(0, 40) },
-          ...prev
-        ]);
+        appendBot(botReply);
       }
-
-      setChat(prev => [...prev, { sender: "bot", text: botReply }]);
-
     } catch (error) {
-
       console.error("API Error:", error);
-
-      setChat(prev => [...prev, {
-        sender: "bot",
-        text: "Something went wrong. Please try again."
-      }]);
-
+      appendBot("Something went wrong. Please try again.");
     }
 
     setLoading(false);
@@ -355,6 +505,11 @@ function App() {
           </div>
         ) : (
         <>
+          {toastText && (
+            <div className="agent-toast" role="status" aria-live="polite">
+              {toastText}
+            </div>
+          )}
         <div className="top-bar">
           <div className="top-bar-spacer"></div>
           <h2 className="title">AI Support Bot</h2>

@@ -74,6 +74,23 @@ body{
   background: rgba(148, 163, 184, 0.35);
 }
 
+/* Lightweight agent toasts (non-intrusive) */
+.agent-toast{
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  background: rgba(30, 41, 59, 0.92);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #e2e8f0;
+  padding: 10px 14px;
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  font-size: 13px;
+  pointer-events: none;
+}
+
 /* Keep Settings feedback visible while scrolling */
 .settings-container .message{
   position: sticky;
@@ -242,6 +259,9 @@ body{
   flex:1;
   width:100%;
   resize:none;
+  overflow:hidden;
+  height:48px;
+  max-height:48px;
   padding:12px 14px;
   border-radius:10px;
   border:1px solid rgba(226,232,240,0.9);
@@ -251,7 +271,6 @@ body{
   line-height:1.4;
   outline:none;
   min-height:48px;
-  max-height:140px;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
 }
 
