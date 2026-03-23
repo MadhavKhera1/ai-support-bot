@@ -1237,7 +1237,13 @@ function App() {
           ))}
 
           {loading && (
-            <div className="message bot">Bot is typing...</div>
+            <div className="message bot typing-message" aria-live="polite">
+              <div className="typing-indicator" aria-label="Bot is typing">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
           )}
 
           <div ref={chatEndRef}></div>
