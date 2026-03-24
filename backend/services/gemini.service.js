@@ -13,10 +13,12 @@ async function generateAIResponse(userMessage){
 
     Rules:
     - Give short and clear answers.
-    - Maximum 3 sentences.
+    - Maximum 5 sentences unless the context clearly needs more.
     - Use simple language.
     - Avoid long paragraphs.
-    - If unsure, say "Please contact support.
+    - If uploaded document context is provided, prefer that context over general knowledge.
+    - If the answer is not supported by the provided context, say that clearly.
+    - If unsure, say "Please contact support."
     User Question:
     ${userMessage}
     `;

@@ -7,6 +7,7 @@ const Conversation = require("../models/conversation.model");
 const Message = require("../models/message.model");
 const FAQ = require("../models/faq.model");
 const authMiddleware = require("../middleware/auth.middleware");
+const { retrieveRelevantChunks } = require("../services/document.service");
 
 
 // POST /api/chat
@@ -40,6 +41,12 @@ router.post("/chat",authMiddleware, async (req, res) => {
                 });
             }
 
+            if (conversation.userId.toString() !== req.user.id) {
+                return res.status(403).json({
+                    error: "Access denied"
+                });
+            }
+
         }
 
         // save user message
@@ -57,6 +64,7 @@ router.post("/chat",authMiddleware, async (req, res) => {
         });
 
         let response;
+        let sources = [];
 
         if (faq) {
 
@@ -79,9 +87,37 @@ router.post("/chat",authMiddleware, async (req, res) => {
 
             });
 
+            const relevantChunks = await retrieveRelevantChunks({
+                userId: req.user.id,
+                query: message,
+                limit: 4
+            });
+
+            if (relevantChunks.length) {
+                sources = relevantChunks.map((chunk) => {
+                    return {
+                        documentTitle: chunk.documentTitle,
+                        chunkIndex: chunk.chunkIndex,
+                        similarity: Number(chunk.similarity.toFixed(4))
+                    };
+                });
+            }
+
+            const retrievalContext = relevantChunks.length
+                ? relevantChunks
+                    .map(
+                        (chunk, index) =>
+                            `[Source ${index + 1} | ${chunk.documentTitle} | chunk ${chunk.chunkIndex + 1}]\n${chunk.content}`
+                    )
+                    .join("\n\n")
+                : "No uploaded document context was found.";
+
             const fullPrompt = `
 Previous conversation:
 ${conversationHistory}
+
+Relevant uploaded document context:
+${retrievalContext}
 
 Current user question:
 ${message}
@@ -123,7 +159,8 @@ ${message}
         res.json({
             reply: response,
             conversationId: conversation._id,
-            needsHumanSupport
+            needsHumanSupport,
+            sources
         });
 
     } catch (error) {

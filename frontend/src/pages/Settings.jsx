@@ -13,9 +13,13 @@ function Settings({ onBack, onLogout, onUserUpdated, onChatsCleared }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [documents, setDocuments] = useState([]);
+  const [documentLoading, setDocumentLoading] = useState(false);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
 
   useEffect(() => {
     fetchUserDetails();
+    fetchDocuments();
   }, []);
 
   const fetchUserDetails = async () => {
@@ -42,6 +46,17 @@ function Settings({ onBack, onLogout, onUserUpdated, onChatsCleared }) {
     setMessage(text);
     setMessageType(type);
     setTimeout(() => setMessage(""), 3000);
+  };
+
+  const fetchDocuments = async () => {
+    try {
+      setDocumentLoading(true);
+      const res = await axios.get("/api/documents");
+      setDocuments(res.data || []);
+    } catch (error) {
+      console.error("Failed to fetch documents:", error);
+    }
+    setDocumentLoading(false);
   };
 
   const updateProfile = async () => {
@@ -120,6 +135,49 @@ function Settings({ onBack, onLogout, onUserUpdated, onChatsCleared }) {
       showMessage("Failed to clear chats", "error");
     }
     setLoading(false);
+  };
+
+  const handleDocumentUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    setUploadingDocument(true);
+    try {
+      await axios.post("/api/documents/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data"
+        }
+      });
+      showMessage("Document uploaded successfully", "success");
+      await fetchDocuments();
+    } catch (error) {
+      console.error("Failed to upload document:", error);
+      showMessage(
+        error.response?.data?.error ||
+          error.message ||
+          "Failed to upload document",
+        "error"
+      );
+    }
+    setUploadingDocument(false);
+    event.target.value = "";
+  };
+
+  const handleDocumentDelete = async (documentId) => {
+    const confirmed = window.confirm("Delete this document from your knowledge base?");
+    if (!confirmed) return;
+
+    try {
+      await axios.delete(`/api/documents/${documentId}`);
+      showMessage("Document deleted successfully", "success");
+      await fetchDocuments();
+    } catch (error) {
+      console.error("Failed to delete document:", error);
+      showMessage(error.response?.data?.error || "Failed to delete document", "error");
+    }
   };
 
   const deleteAccount = async () => {
@@ -239,6 +297,49 @@ function Settings({ onBack, onLogout, onUserUpdated, onChatsCleared }) {
           >
             {loading ? "Updating..." : "Change Password"}
           </button>
+        </div>
+
+        <div className="settings-section">
+          <h2>Knowledge Base</h2>
+          <p className="section-description">
+            Upload PDF, TXT, or Markdown files so the assistant can use them as extra context during chat.
+          </p>
+
+          <label className="btn btn-primary upload-btn">
+            {uploadingDocument ? "Uploading..." : "Upload Document"}
+            <input
+              type="file"
+              accept=".pdf,.txt,.md,text/plain,text/markdown,application/pdf"
+              onChange={handleDocumentUpload}
+              disabled={uploadingDocument}
+              hidden
+            />
+          </label>
+
+          <div className="document-list">
+            {documentLoading ? (
+              <div className="document-empty">Loading documents...</div>
+            ) : documents.length === 0 ? (
+              <div className="document-empty">No documents uploaded yet.</div>
+            ) : (
+              documents.map((doc) => (
+                <div key={doc._id} className="document-item">
+                  <div className="document-meta">
+                    <div className="document-title">{doc.title}</div>
+                    <div className="document-subtitle">
+                      {doc.mimeType} | {doc.chunkCount || 0} chunks | {doc.status}
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn-secondary document-delete-btn"
+                    onClick={() => handleDocumentDelete(doc._id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         {/* Data Section */}
