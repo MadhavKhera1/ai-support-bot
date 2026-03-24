@@ -11,6 +11,112 @@ const DocumentChunk = require("../models/documentChunk.model");
 const authMiddleware = require("../middleware/auth.middleware");
 const { retrieveRelevantChunks } = require("../services/document.service");
 
+const DOCUMENT_GROUNDING_THRESHOLD = 0.42;
+const DOCUMENT_STRONG_MATCH_THRESHOLD = 0.5;
+const DOCUMENT_CONCEPT_MATCH_THRESHOLD = 0.62;
+const MAX_GROUNDED_CHUNKS = 3;
+const MAX_GROUNDED_DOCUMENTS = 2;
+const DOCUMENT_SIMILARITY_WINDOW = 0.04;
+
+const CONCEPT_QUESTION_PATTERNS = [
+    /^what is\b/i,
+    /^what do you mean by\b/i,
+    /^define\b/i,
+    /^explain\b/i,
+    /^tell me about\b/i
+];
+
+const DOCUMENT_TARGET_PATTERNS = [
+    /\bmadhav\b/i,
+    /\bresume\b/i,
+    /\bcv\b/i,
+    /\bdocument\b/i,
+    /\bpdf\b/i,
+    /\bfile\b/i,
+    /\babcid\b/i,
+    /\bemail\b/i,
+    /\bdob\b/i,
+    /\beducation\b/i,
+    /\bexperience\b/i,
+    /\bskill\b/i,
+    /\bexposure\b/i,
+    /\bhis\b/i,
+    /\bher\b/i,
+    /\btheir\b/i,
+    /\bmy\b/i
+];
+
+const isConceptQuestion = (text = "") =>
+    CONCEPT_QUESTION_PATTERNS.some((pattern) => pattern.test(text.trim()));
+
+const isDocumentTargetedQuestion = (text = "") =>
+    DOCUMENT_TARGET_PATTERNS.some((pattern) => pattern.test(text));
+
+const pickGroundedChunks = (scoredChunks = [], options = {}) => {
+    const { preferGeneralKnowledge = false } = options;
+    const topChunk = scoredChunks[0] || null;
+
+    if (!topChunk) {
+        return [];
+    }
+
+    if (
+        preferGeneralKnowledge &&
+        topChunk.similarity < DOCUMENT_CONCEPT_MATCH_THRESHOLD
+    ) {
+        return [];
+    }
+
+    const hasStrongDocumentMatch =
+        topChunk.similarity >= DOCUMENT_STRONG_MATCH_THRESHOLD ||
+        scoredChunks.filter(
+            (chunk) => chunk.similarity >= DOCUMENT_GROUNDING_THRESHOLD
+        ).length >= 2;
+
+    if (!hasStrongDocumentMatch) {
+        return [];
+    }
+
+    const documentsByStrength = new Map();
+
+    scoredChunks.forEach((chunk) => {
+        if (chunk.similarity < DOCUMENT_GROUNDING_THRESHOLD) {
+            return;
+        }
+
+        const documentKey = String(chunk.documentId);
+        const existing = documentsByStrength.get(documentKey);
+
+        if (!existing || chunk.similarity > existing.bestSimilarity) {
+            documentsByStrength.set(documentKey, {
+                documentKey,
+                bestSimilarity: chunk.similarity
+            });
+        }
+    });
+
+    const strongestDocuments = [...documentsByStrength.values()]
+        .sort((a, b) => b.bestSimilarity - a.bestSimilarity)
+        .filter(
+            (document, index, sortedDocuments) =>
+                index === 0 ||
+                document.bestSimilarity >=
+                    sortedDocuments[0].bestSimilarity - DOCUMENT_SIMILARITY_WINDOW
+        )
+        .slice(0, MAX_GROUNDED_DOCUMENTS);
+
+    const allowedDocumentKeys = new Set(
+        strongestDocuments.map((document) => document.documentKey)
+    );
+
+    return scoredChunks
+        .filter(
+            (chunk) =>
+                chunk.similarity >= DOCUMENT_GROUNDING_THRESHOLD &&
+                allowedDocumentKeys.has(String(chunk.documentId))
+        )
+        .slice(0, MAX_GROUNDED_CHUNKS);
+};
 
 // POST /api/chat
 router.post("/chat",authMiddleware, async (req, res) => {
@@ -67,10 +173,12 @@ router.post("/chat",authMiddleware, async (req, res) => {
 
         let response;
         let sources = [];
+        let groundingSource = "general";
 
         if (faq) {
 
             response = faq.answer;
+            groundingSource = "faq";
 
         } else {
 
@@ -96,18 +204,29 @@ router.post("/chat",authMiddleware, async (req, res) => {
                 limit: 4
             });
 
-            if (relevantChunks.length) {
-                sources = relevantChunks.map((chunk) => {
+            const scoredChunks = relevantChunks.filter(
+                (chunk) => Number.isFinite(chunk.similarity)
+            );
+            const preferGeneralKnowledge =
+                isConceptQuestion(message) && !isDocumentTargetedQuestion(message);
+            const groundedChunks = pickGroundedChunks(scoredChunks, {
+                preferGeneralKnowledge
+            });
+
+            if (groundedChunks.length) {
+                groundingSource = "documents";
+                sources = groundedChunks.map((chunk) => {
                     return {
                         documentTitle: chunk.documentTitle,
                         chunkIndex: chunk.chunkIndex,
-                        similarity: Number(chunk.similarity.toFixed(4))
+                        similarity: Number(chunk.similarity.toFixed(4)),
+                        scope: chunk.scope || "global"
                     };
                 });
             }
 
-            const retrievalContext = relevantChunks.length
-                ? relevantChunks
+            const retrievalContext = groundedChunks.length
+                ? groundedChunks
                     .map(
                         (chunk, index) =>
                             `[Source ${index + 1} | ${chunk.documentTitle} | chunk ${chunk.chunkIndex + 1}]\n${chunk.content}`
@@ -128,6 +247,12 @@ ${message}
 
             response = await generateAIResponse(fullPrompt);
 
+            if (typeof response !== "string" || !response.trim()) {
+                response = "I could not generate a response right now. Please try again.";
+                groundingSource = "general";
+                sources = [];
+            }
+
         }
 
         // Escalation Detection
@@ -141,7 +266,7 @@ ${message}
 
         for (let phrase of escalationPhrases) {
 
-            if (response.toLowerCase().includes(phrase)) {
+            if (typeof response === "string" && response.toLowerCase().includes(phrase)) {
 
                 needsHumanSupport = true;
                 break;
@@ -154,7 +279,9 @@ ${message}
         const botMessage = new Message({
             conversationId: conversation._id,
             role: "bot",
-            content: response
+            content: response,
+            sources,
+            groundingSource
         });
 
         await botMessage.save();
@@ -163,7 +290,8 @@ ${message}
             reply: response,
             conversationId: conversation._id,
             needsHumanSupport,
-            sources
+            sources,
+            groundingSource
         });
 
     } catch (error) {

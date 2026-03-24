@@ -332,8 +332,38 @@ function App() {
     return { type: "AI_CHAT" };
   };
 
-  const appendBot = (text) => {
-    setChat((prev) => [...prev, { sender: "bot", text }]);
+  const appendBot = (text, sources = [], groundingSource = "general") => {
+    setChat((prev) => [...prev, { sender: "bot", text, sources, groundingSource }]);
+  };
+
+  const summarizeSources = (sources = []) => {
+    const grouped = new Map();
+
+    sources.forEach((source) => {
+      const scope = source.scope === "conversation" ? "conversation" : "global";
+      const key = `${source.documentTitle}::${scope}`;
+      const existing = grouped.get(key);
+
+      if (existing) {
+        existing.chunkCount += 1;
+        existing.bestSimilarity = Math.max(
+          existing.bestSimilarity,
+          Number(source.similarity || 0)
+        );
+        return;
+      }
+
+      grouped.set(key, {
+        documentTitle: source.documentTitle,
+        scope,
+        chunkCount: 1,
+        bestSimilarity: Number(source.similarity || 0)
+      });
+    });
+
+    return [...grouped.values()].sort(
+      (a, b) => b.bestSimilarity - a.bestSimilarity
+    );
   };
 
   // Used for "agentic" formatting requests like:
@@ -837,6 +867,8 @@ function App() {
         });
 
         const botReply = res.data.reply;
+        const botSources = res.data.sources || [];
+        const botGroundingSource = res.data.groundingSource || "general";
 
         if (!conversationId) {
           const newConversationId = res.data.conversationId;
@@ -847,11 +879,11 @@ function App() {
           ]);
         }
 
-        appendBot(botReply);
+        appendBot(botReply, botSources, botGroundingSource);
       }
     } catch (error) {
       console.error("API Error:", error);
-      appendBot("Something went wrong. Please try again.");
+      appendBot("Something went wrong. Please try again.", [], "none");
     }
 
     setLoading(false);
@@ -867,7 +899,9 @@ function App() {
 
       const messages = res.data.map(msg => ({
         sender: msg.role,
-        text: msg.content
+        text: msg.content,
+        sources: msg.sources || [],
+        groundingSource: msg.groundingSource || "none"
       }));
 
       setConversationId(id);
@@ -1047,12 +1081,21 @@ function App() {
       });
       
       const botReply = res.data.reply;
-      setChat(prev => [...prev, { sender: "bot", text: botReply }]);
+      const botSources = res.data.sources || [];
+      const botGroundingSource = res.data.groundingSource || "general";
+      setChat(prev => [...prev, {
+        sender: "bot",
+        text: botReply,
+        sources: botSources,
+        groundingSource: botGroundingSource
+      }]);
     } catch (error) {
       console.error("API Error:", error);
       setChat(prev => [...prev, {
         sender: "bot",
-        text: "Something went wrong. Please try again."
+        text: "Something went wrong. Please try again.",
+        sources: [],
+        groundingSource: "none"
       }]);
     }
     
@@ -1326,6 +1369,42 @@ function App() {
                       </svg>
                     )}
                   </button>
+                </div>
+              )}
+              {msg.sender === "bot" && msg.groundingSource === "general" && (
+                <div className="message-grounding-note">
+                  Answered from general knowledge, not from the uploaded documents.
+                </div>
+              )}
+              {msg.sender === "bot" && msg.groundingSource === "faq" && (
+                <div className="message-grounding-note">
+                  Answered from the built-in FAQ knowledge.
+                </div>
+              )}
+              {msg.sender === "bot" && Array.isArray(msg.sources) && msg.sources.length > 0 && (
+                <div className="message-sources">
+                  <div className="message-sources-title">Sources</div>
+                  <div className="message-sources-list">
+                    {summarizeSources(msg.sources).map((source, sourceIndex) => (
+                      <div
+                        key={`${source.documentTitle}-${source.scope}-${sourceIndex}`}
+                        className="message-source-chip"
+                      >
+                        <span className="message-source-name">{source.documentTitle}</span>
+                        <span className="message-source-detail">
+                          {source.scope === "conversation" ? "This chat" : "Knowledge base"}
+                        </span>
+                        {source.chunkCount > 1 && (
+                          <>
+                            <span className="message-source-separator">•</span>
+                            <span className="message-source-detail">
+                              {source.chunkCount} matches
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
               {msg.sender === "bot" && index === chat.length - 1 && (
