@@ -23,8 +23,11 @@ The system follows a simple agent-style flow:
 ### Home 🏠
 ![Home](assets/screenshots/home.png)
 
-### Chat 💬
+### Chat (1)💬
 ![Chat](assets/screenshots/chat.png)
+
+### Chat (2)💬
+![Chat](assets/screenshots/chat1.png)
 
 ### Login 🔐
 ![Login](assets/screenshots/login.png)
@@ -35,8 +38,11 @@ The system follows a simple agent-style flow:
 ### Forgot Password 🔑
 ![Forgot Password](assets/screenshots/forgot_pwd.png)
 
-### Settings ⚙️
+### Settings (1)⚙️
 ![Settings](assets/screenshots/settings.png)
+
+### Settings (2)⚙️
+![Settings](assets/screenshots/settings1.png)
 
 ### Help Guide 🧠
 ![Help Guide](assets/screenshots/help_guide.png)
