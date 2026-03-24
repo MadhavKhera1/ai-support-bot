@@ -51,7 +51,9 @@ function Settings({ onBack, onLogout, onUserUpdated, onChatsCleared }) {
   const fetchDocuments = async () => {
     try {
       setDocumentLoading(true);
-      const res = await axios.get("/api/documents");
+      const res = await axios.get("/api/documents", {
+        params: { scope: "global" }
+      });
       setDocuments(res.data || []);
     } catch (error) {
       console.error("Failed to fetch documents:", error);

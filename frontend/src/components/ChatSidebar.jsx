@@ -9,6 +9,7 @@ function ChatSidebar({
   setConversationId,
   setChat,
   user,
+  onStartNewChat,
   onOpenSettings,
   onLogout
 }) {
@@ -75,6 +76,14 @@ function ChatSidebar({
             </button>
 
       </div>
+
+      <button
+        type="button"
+        className="sidebar-new-chat-btn"
+        onClick={onStartNewChat}
+      >
+        + New Chat
+      </button>
 
       <h3>Previous Chats</h3>
 

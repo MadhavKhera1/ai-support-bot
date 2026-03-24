@@ -28,6 +28,8 @@ function App() {
   const [route, setRoute] = useState(() => window.location.pathname || "/");
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpRendered, setHelpRendered] = useState(false);
+  const [conversationDocuments, setConversationDocuments] = useState([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const helpCloseTimeoutRef = useRef(null);
 
   const openHelp = () => {
@@ -71,6 +73,7 @@ function App() {
   const chatEndRef = useRef(null);
   const chatInputRef = useRef(null);
   const chatBoxRef = useRef(null);
+  const attachmentInputRef = useRef(null);
 
   useEffect(() => {
     const onPop = () => setRoute(window.location.pathname || "/");
@@ -91,6 +94,7 @@ function App() {
     setConversations([]);
     setConversationId(null);
     setChat([]);
+    setConversationDocuments([]);
     setSidebarOpen(false);
     navigate("/");
   };
@@ -102,6 +106,42 @@ function App() {
     } catch (error) {
       console.error("Failed to fetch conversations", error);
     }
+  };
+
+  const fetchConversationDocuments = async (id) => {
+    if (!id) {
+      setConversationDocuments([]);
+      return;
+    }
+
+    try {
+      const res = await axios.get("/api/documents", {
+        params: {
+          scope: "conversation",
+          conversationId: id
+        }
+      });
+      setConversationDocuments(res.data || []);
+    } catch (error) {
+      console.error("Failed to fetch conversation documents", error);
+    }
+  };
+
+  const ensureConversationForAttachment = async (fileName = "New conversation") => {
+    if (conversationId) return conversationId;
+
+    const baseTitle =
+      fileName.replace(/\.[^.]+$/, "").trim().slice(0, 40) || "New conversation";
+
+    const res = await axios.post("/api/conversations", {
+      title: baseTitle
+    });
+
+    const nextConversationId = res.data._id;
+    setConversationId(nextConversationId);
+    setConversations((prev) => [res.data, ...prev]);
+
+    return nextConversationId;
   };
 
   
@@ -173,6 +213,15 @@ function App() {
   }, [token, isLoggedIn]);
 
   useEffect(() => {
+    if (!isLoggedIn || !token || !conversationId) {
+      setConversationDocuments([]);
+      return;
+    }
+
+    Promise.resolve().then(() => fetchConversationDocuments(conversationId));
+  }, [conversationId, isLoggedIn, token]);
+
+  useEffect(() => {
 
       const fetchUser = async () => {
 
@@ -199,6 +248,7 @@ function App() {
   const startNewConversation = () => {
     setConversationId(null);
     setChat([]);
+    setConversationDocuments([]);
   };
 
   const detectIntent = (text) => {
@@ -832,6 +882,58 @@ function App() {
 
   };
 
+  const handleConversationAttachment = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingAttachment(true);
+
+    try {
+      const targetConversationId = await ensureConversationForAttachment(file.name);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("scope", "conversation");
+      formData.append("conversationId", targetConversationId);
+
+      const res = await axios.post("/api/documents/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data"
+        }
+      });
+
+      setConversationDocuments((prev) => [res.data.document, ...prev]);
+      showToast("File attached to this chat", 1800, "agent");
+      if (chatInputRef.current) chatInputRef.current.focus();
+    } catch (error) {
+      console.error("Chat attachment upload error:", error);
+      showToast(
+        error.response?.data?.error || "Failed to attach file",
+        2200,
+        "agent"
+      );
+    } finally {
+      setUploadingAttachment(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleConversationDocumentDelete = async (documentId) => {
+    try {
+      await axios.delete(`/api/documents/${documentId}`);
+      setConversationDocuments((prev) =>
+        prev.filter((document) => document._id !== documentId)
+      );
+      showToast("Attachment removed", 1600, "agent");
+    } catch (error) {
+      console.error("Failed to delete conversation document", error);
+      showToast(
+        error.response?.data?.error || "Failed to remove attachment",
+        2000,
+        "agent"
+      );
+    }
+  };
+
   const handleKeyDown = (e) => {
     // Enter submits; Shift+Enter allows newline (if needed).
     if (e.key === "Enter" && !e.shiftKey) {
@@ -979,6 +1081,10 @@ function App() {
           setConversationId={setConversationId}
           setChat={setChat}
           user={user}
+          onStartNewChat={() => {
+            startNewConversation();
+            setSidebarOpen(false);
+          }}
           onOpenSettings={() => {
             navigate("/settings");
             setSidebarOpen(false);
@@ -1249,19 +1355,70 @@ function App() {
           <div ref={chatEndRef}></div>
         </div>
 
-        <div className="input-area">
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Ask a question"
-            className="chat-input"
-            rows={1}
-            onKeyDown={handleKeyDown}
-            ref={chatInputRef}
-          />
-          <button onClick={() => sendMessage()} className="send-btn" disabled={loading}>
-            {loading ? "Sending..." : "Send"}
-          </button>
+        <div className="composer-area">
+          {(conversationDocuments.length > 0 || uploadingAttachment) && (
+            <div className="conversation-documents">
+              {conversationDocuments.map((document) => (
+                <div key={document._id} className="conversation-document-chip">
+                  <div className="conversation-document-meta">
+                    <span className="conversation-document-name">{document.title}</span>
+                    <span className="conversation-document-label">This chat only</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="conversation-document-remove"
+                    onClick={() => handleConversationDocumentDelete(document._id)}
+                    title="Remove attachment"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {uploadingAttachment && (
+                <div className="conversation-document-chip pending">
+                  <div className="conversation-document-meta">
+                    <span className="conversation-document-name">Uploading attachment...</span>
+                    <span className="conversation-document-label">This chat only</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="input-area">
+            <input
+              ref={attachmentInputRef}
+              type="file"
+              accept=".pdf,.txt,.md"
+              onChange={handleConversationAttachment}
+              style={{ display: "none" }}
+            />
+            <button
+              type="button"
+              className="attach-btn"
+              onClick={() => attachmentInputRef.current?.click()}
+              disabled={loading || uploadingAttachment}
+              title="Attach file to this chat"
+            >
+              {uploadingAttachment ? "..." : "+"}
+            </button>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Ask a question or attach a file for this chat"
+              className="chat-input"
+              rows={1}
+              onKeyDown={handleKeyDown}
+              ref={chatInputRef}
+            />
+            <button
+              onClick={() => sendMessage()}
+              className="send-btn"
+              disabled={loading || uploadingAttachment}
+            >
+              {loading ? "Sending..." : "Send"}
+            </button>
+          </div>
         </div>
         </>
         )}

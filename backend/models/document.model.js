@@ -7,6 +7,16 @@ const documentSchema = new mongoose.Schema(
             ref: "User",
             required: true
         },
+        conversationId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Conversation",
+            default: null
+        },
+        scope: {
+            type: String,
+            enum: ["global", "conversation"],
+            default: "global"
+        },
         fileName: {
             type: String,
             required: true
@@ -43,5 +53,7 @@ const documentSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+documentSchema.index({ userId: 1, scope: 1, conversationId: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Document", documentSchema);

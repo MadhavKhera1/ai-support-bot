@@ -2,6 +2,7 @@ const express = require("express");
 const multer = require("multer");
 
 const Document = require("../models/document.model");
+const Conversation = require("../models/conversation.model");
 const authMiddleware = require("../middleware/auth.middleware");
 const {
     ingestDocument,
@@ -19,7 +20,19 @@ const upload = multer({
 
 router.get("/documents", authMiddleware, async (req, res) => {
     try {
-        const documents = await Document.find({ userId: req.user.id })
+        const { scope, conversationId } = req.query;
+        const filter = { userId: req.user.id };
+
+        if (scope === "global") {
+            filter.scope = "global";
+        }
+
+        if (scope === "conversation") {
+            filter.scope = "conversation";
+            filter.conversationId = conversationId || null;
+        }
+
+        const documents = await Document.find(filter)
             .sort({ createdAt: -1 });
 
         res.json(documents);
@@ -49,9 +62,37 @@ router.post(
                 return res.status(400).json({ error: "File is required" });
             }
 
+            const scope = req.body.scope === "conversation" ? "conversation" : "global";
+            const conversationId =
+                scope === "conversation" ? req.body.conversationId : null;
+
+            if (scope === "conversation") {
+                if (!conversationId) {
+                    return res.status(400).json({
+                        error: "conversationId is required for chat attachments"
+                    });
+                }
+
+                const conversation = await Conversation.findById(conversationId);
+
+                if (!conversation) {
+                    return res.status(404).json({
+                        error: "Conversation not found"
+                    });
+                }
+
+                if (conversation.userId.toString() !== req.user.id) {
+                    return res.status(403).json({
+                        error: "Access denied"
+                    });
+                }
+            }
+
             const document = await ingestDocument({
                 userId: req.user.id,
-                file: req.file
+                file: req.file,
+                scope,
+                conversationId
             });
 
             res.status(201).json({

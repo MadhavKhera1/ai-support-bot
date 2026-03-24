@@ -6,6 +6,8 @@ const generateAIResponse = require("../services/gemini.service");
 const Conversation = require("../models/conversation.model");
 const Message = require("../models/message.model");
 const FAQ = require("../models/faq.model");
+const Document = require("../models/document.model");
+const DocumentChunk = require("../models/documentChunk.model");
 const authMiddleware = require("../middleware/auth.middleware");
 const { retrieveRelevantChunks } = require("../services/document.service");
 
@@ -90,6 +92,7 @@ router.post("/chat",authMiddleware, async (req, res) => {
             const relevantChunks = await retrieveRelevantChunks({
                 userId: req.user.id,
                 query: message,
+                conversationId: conversation._id,
                 limit: 4
             });
 
@@ -193,6 +196,33 @@ router.get("/conversations", authMiddleware,async (req, res) => {
 
 });
 
+router.post("/conversations", authMiddleware, async (req, res) => {
+
+  try {
+
+    const title =
+      typeof req.body?.title === "string" && req.body.title.trim()
+        ? req.body.title.trim().slice(0, 80)
+        : "New conversation";
+
+    const conversation = new Conversation({
+      title,
+      userId: req.user.id
+    });
+
+    await conversation.save();
+
+    res.status(201).json(conversation);
+
+  } catch (error) {
+
+    console.error("CREATE CONVERSATION ERROR:", error);
+    res.status(500).json({ error: "Failed to create conversation" });
+
+  }
+
+});
+
 
 // get messages of a specific conversation
 router.get("/messages/:conversationId", authMiddleware, async (req, res) => {
@@ -260,6 +290,27 @@ router.delete("/conversation/:id", authMiddleware, async (req, res) => {
 
     // delete all messages
     await Message.deleteMany({ conversationId });
+
+    const documents = await Document.find({
+      userId: req.user.id,
+      scope: "conversation",
+      conversationId
+    }).select("_id");
+
+    const documentIds = documents.map((doc) => doc._id);
+
+    if (documentIds.length) {
+      await DocumentChunk.deleteMany({
+        userId: req.user.id,
+        documentId: { $in: documentIds }
+      });
+    }
+
+    await Document.deleteMany({
+      userId: req.user.id,
+      scope: "conversation",
+      conversationId
+    });
 
     // delete conversation
     await Conversation.findByIdAndDelete(conversationId);
@@ -336,6 +387,27 @@ router.delete("/conversations/clear-all", authMiddleware, async (req, res) => {
 
     // Delete all messages in these conversations
     const messageDeleteResult = await Message.deleteMany({
+      conversationId: { $in: conversationIds }
+    });
+
+    const documents = await Document.find({
+      userId,
+      scope: "conversation",
+      conversationId: { $in: conversationIds }
+    }).select("_id");
+
+    const documentIds = documents.map((doc) => doc._id);
+
+    if (documentIds.length) {
+      await DocumentChunk.deleteMany({
+        userId,
+        documentId: { $in: documentIds }
+      });
+    }
+
+    await Document.deleteMany({
+      userId,
+      scope: "conversation",
       conversationId: { $in: conversationIds }
     });
 

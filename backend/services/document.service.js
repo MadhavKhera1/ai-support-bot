@@ -120,9 +120,20 @@ const cosineSimilarity = (vectorA = [], vectorB = []) => {
     return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 };
 
-const ingestDocument = async ({ userId, file }) => {
+const ingestDocument = async ({
+    userId,
+    file,
+    scope = "global",
+    conversationId = null
+}) => {
+    if (scope === "conversation" && !conversationId) {
+        throw new Error("Conversation documents require a conversation.");
+    }
+
     const document = await Document.create({
         userId,
+        conversationId: scope === "conversation" ? conversationId : null,
+        scope,
         fileName: file.originalname,
         mimeType: file.mimetype,
         fileSize: file.size,
@@ -173,9 +184,27 @@ const ingestDocument = async ({ userId, file }) => {
     }
 };
 
-const retrieveRelevantChunks = async ({ userId, query, limit = 4 }) => {
-    const documents = await Document.find({ userId, status: "ready" })
-        .select("_id title")
+const retrieveRelevantChunks = async ({
+    userId,
+    query,
+    conversationId = null,
+    limit = 4
+}) => {
+    const documentFilter = {
+        userId,
+        status: "ready",
+        $or: [{ scope: "global" }]
+    };
+
+    if (conversationId) {
+        documentFilter.$or.push({
+            scope: "conversation",
+            conversationId
+        });
+    }
+
+    const documents = await Document.find(documentFilter)
+        .select("_id title scope")
         .lean();
 
     if (!documents.length) return [];
@@ -183,7 +212,10 @@ const retrieveRelevantChunks = async ({ userId, query, limit = 4 }) => {
     const queryVector = await embedSingleText(query, TaskType.RETRIEVAL_QUERY);
     if (!queryVector.length) return [];
 
-    const chunks = await DocumentChunk.find({ userId })
+    const chunks = await DocumentChunk.find({
+        userId,
+        documentId: { $in: documents.map((doc) => doc._id) }
+    })
         .select("documentId chunkIndex content embedding")
         .lean();
 
@@ -193,7 +225,9 @@ const retrieveRelevantChunks = async ({ userId, query, limit = 4 }) => {
         .map((chunk) => ({
             ...chunk,
             similarity: cosineSimilarity(queryVector, chunk.embedding || []),
-            documentTitle: documentMap.get(String(chunk.documentId))?.title || "Document"
+            documentTitle: documentMap.get(String(chunk.documentId))?.title || "Document",
+            scope:
+                documentMap.get(String(chunk.documentId))?.scope || "global"
         }))
         .filter((chunk) => chunk.similarity > 0.2)
         .sort((a, b) => b.similarity - a.similarity)
